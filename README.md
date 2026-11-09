@@ -60,8 +60,8 @@ All settings live in `Data/SKSE/Plugins/ARPGCutaway.ini`. Restart the game after
 | `Cut.Radius` | 2500 | Selective cut only: how far from you meshes get cut |
 | `Cut.AllGeometry` | 1 | Draw every mesh with the cut projection (consistent depth) |
 | `Cut.Slope` | 1.0 | How fast the cut rises behind you (1 = 45°, 0 = flat); clamped to keep the floor |
-| `Cut.ReanchorDistance` | 120 | Height change needed before the cut moves (e.g. another floor) |
-| `Cut.ReanchorDelay` | 0.5 | Seconds you must stay at the new height before it moves |
+| `Cut.ReanchorDistance` | 150 | Height change needed before the cut moves (e.g. another floor) |
+| `Cut.ReanchorDelay` | 1.0 | Seconds on the ground at the new height before it moves (jumps never count) |
 | `Cut.ReanchorSpeed` | 400 | How fast the cut glides to its new height (units/second) |
 | `[Cells] <EditorID>` | — | Per-interior cut height, or `off` |
 | `Background.BlackFog` | 1 | Black interior fog while inside |

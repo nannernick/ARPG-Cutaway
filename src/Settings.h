@@ -12,8 +12,8 @@ namespace Settings
 	inline float CutRadius = 2500.0f;         // only meshes within this horizontal distance get cut
 	inline bool  CutAllGeometry = true;       // draw every main-camera mesh with the cut projection (consistent depth)
 	inline float CutSlope = 1.0f;             // how fast the cut rises behind you, away from the camera (1 = 45 deg, 0 = flat)
-	inline float ReanchorDistance = 120.0f;   // cut height only moves if you are this far above/below its anchor...
-	inline float ReanchorDelay = 0.5f;        // ...for this many seconds
+	inline float ReanchorDistance = 150.0f;   // cut height only moves if you are this far above/below its anchor...
+	inline float ReanchorDelay = 1.0f;        // ...for this many seconds, on the ground
 	inline float ReanchorSpeed = 400.0f;      // units/second the cut glides to its new height
 
 	// [Cells] - per-interior overrides, keyed by lowercase editor ID

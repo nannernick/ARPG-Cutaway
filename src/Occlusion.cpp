@@ -406,7 +406,9 @@ namespace Occlusion
 					g_anchorValid = true;
 					g_anchorMoving = false;
 				}
-				if (std::abs(feet.z - g_anchorZ) > Settings::ReanchorDistance && !g_anchorMoving) {
+				// Only count time on the ground at a new height: jumps and falls never re-anchor.
+				const bool grounded = !player->IsInMidair();
+				if (grounded && std::abs(feet.z - g_anchorZ) > Settings::ReanchorDistance && !g_anchorMoving) {
 					g_reanchorTimer += a_delta;
 					if (g_reanchorTimer >= Settings::ReanchorDelay) {
 						g_anchorTarget = feet.z;

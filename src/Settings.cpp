@@ -88,6 +88,11 @@ namespace Settings
 		ReanchorDistance = GetFloat(ini, "Cut.ReanchorDistance", ReanchorDistance, 0.0f, 5000.0f);
 		ReanchorDelay = GetFloat(ini, "Cut.ReanchorDelay", ReanchorDelay, 0.0f, 30.0f);
 		ReanchorSpeed = GetFloat(ini, "Cut.ReanchorSpeed", ReanchorSpeed, 1.0f, 100000.0f);
+		AutoLift = GetBool(ini, "Cut.AutoLift", AutoLift);
+		ClearDelay = GetFloat(ini, "Cut.ClearDelay", ClearDelay, 0.0f, 30.0f);
+		LiftSpeed = GetFloat(ini, "Cut.LiftSpeed", LiftSpeed, 1.0f, 100000.0f);
+		DropSpeed = GetFloat(ini, "Cut.DropSpeed", DropSpeed, 1.0f, 100000.0f);
+		LiftMax = GetFloat(ini, "Cut.LiftMax", LiftMax, 0.0f, 100000.0f);
 
 		CellOverrides.clear();
 		for (const auto& [key, value] : ini) {
@@ -128,6 +133,8 @@ namespace Settings
 		logs::info("settings: mode={} ({}) cutHeight={:.0f} cutRadius={:.0f} cutAllGeometry={}", Mode, Mode == 1 ? "cut" : "hide", CutHeight, CutRadius, CutAllGeometry);
 		logs::info("settings: cutSlope={:.2f} reanchor={:.0f}u/{:.2f}s speed={:.0f} cellOverrides={}",
 			CutSlope, ReanchorDistance, ReanchorDelay, ReanchorSpeed, CellOverrides.size());
+		logs::info("settings: autoLift={} clearDelay={:.2f} liftSpeed={:.0f} dropSpeed={:.0f} liftMax={:.0f}",
+			AutoLift, ClearDelay, LiftSpeed, DropSpeed, LiftMax);
 		logs::info("settings: enabled={} interiorOnly={} head={:.0f} corridor={:.0f} interval={:.2f} minCam={:.0f}",
 			Enabled, InteriorOnly, HeadHeight, CorridorRadius, SweepInterval, MinCameraDistance);
 		logs::info("settings: ceilingHeight={:.0f} behindMargin={:.0f} hysteresis={:.0f}", CeilingHeight, BehindMargin, Hysteresis);

@@ -57,6 +57,42 @@ namespace Occlusion
 		float                           g_reanchorTimer{ 0.0f };
 		const Settings::CellOverride*   g_cellOverride{ nullptr };
 
+		// Auto-lift: how far the cut is currently raised above its normal height.
+		float g_lift{ 0.0f };
+		float g_clearTime{ 0.0f };
+		bool  g_viewBlocked{ true };
+
+		// True if static world geometry (walls, roofs, rock) sits between the camera
+		// and the player. Uses collision, so it is unaffected by the visual cut.
+		bool SightBlocked(RE::PlayerCharacter* a_player, RE::TESObjectCELL* a_cell, const RE::NiPoint3& a_camPos, const RE::NiPoint3& a_feet)
+		{
+			auto* world = a_cell ? a_cell->GetbhkWorld() : nullptr;
+			if (!world) {
+				return true;  // unknown: keep cutting
+			}
+			const float scale = RE::bhkWorld::GetWorldScale();
+			RE::CFilter filter;
+			a_player->GetCollisionFilterInfo(filter);
+
+			const float targets[3] = { 40.0f, 90.0f, Settings::HeadHeight };
+			RE::BSReadLockGuard lock(world->worldLock);
+			for (const float h : targets) {
+				RE::bhkPickData pick;
+				pick.rayInput.from = { a_camPos.x * scale, a_camPos.y * scale, a_camPos.z * scale, 0.0f };
+				pick.rayInput.to = { a_feet.x * scale, a_feet.y * scale, (a_feet.z + h) * scale, 0.0f };
+				pick.rayInput.filterInfo = filter;
+				if (!world->PickObject(pick) || !pick.rayOutput.HasHit() || !pick.rayOutput.rootCollidable) {
+					continue;
+				}
+				const auto layer = pick.rayOutput.rootCollidable->GetCollisionLayer();
+				if (layer == RE::COL_LAYER::kStatic || layer == RE::COL_LAYER::kAnimStatic ||
+					layer == RE::COL_LAYER::kTrees || layer == RE::COL_LAYER::kTerrain || layer == RE::COL_LAYER::kGround) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		float         g_perfTimer{ 0.0f };
 		std::uint32_t g_perfSweeps{ 0 };
 		std::uint64_t g_perfRefs{ 0 };
@@ -195,6 +231,9 @@ namespace Occlusion
 			g_anchorMoving = false;
 			g_reanchorTimer = 0.0f;
 			g_cellOverride = nullptr;
+			g_lift = 0.0f;
+			g_clearTime = 0.0f;
+			g_viewBlocked = true;
 
 			if (!a_cell) {
 				return;
@@ -432,10 +471,30 @@ namespace Occlusion
 					}
 				}
 
-				const bool off = g_cellOverride && g_cellOverride->off;
+				// Auto-lift: drop the cut fast when something blocks the view, raise it
+				// slowly (after ClearDelay) when the camera can already see the player.
+				if (Settings::AutoLift && camNode) {
+					const bool blocked = SightBlocked(player, cell, camNode->world.translate, feet);
+					if (blocked != g_viewBlocked && Settings::DebugLog) {
+						logs::info("[cut] view {}", blocked ? "blocked -> lowering cut" : "clear -> raising cut");
+					}
+					g_viewBlocked = blocked;
+					g_clearTime = blocked ? 0.0f : g_clearTime + a_delta;
+					const bool  raise = !blocked && g_clearTime >= Settings::ClearDelay;
+					const float target = raise ? Settings::LiftMax : 0.0f;
+					const float speed = raise ? Settings::LiftSpeed : Settings::DropSpeed;
+					const float diff = target - g_lift;
+					const float step = speed * a_delta;
+					g_lift = std::abs(diff) <= step ? target : g_lift + (diff > 0.0f ? step : -step);
+				} else {
+					g_lift = 0.0f;
+				}
+				const bool liftedAway = Settings::AutoLift && Settings::LiftMax > 0.0f && g_lift >= Settings::LiftMax;
+
+				const bool off = (g_cellOverride && g_cellOverride->off) || liftedAway;
 				if (camNode && !off) {
 					const float  height = g_cellOverride ? g_cellOverride->height : Settings::CutHeight;
-					const float  cutZ = g_anchorZ + height;
+					const float  cutZ = g_anchorZ + height + g_lift;
 					const auto&  camPos = camNode->world.translate;
 
 					// Keep points with z <= cutZ + slope * (distance past the player, away from
@@ -461,9 +520,9 @@ namespace Occlusion
 					const auto cut = Cut::TakeCutPassCount();
 					const auto skipped = Cut::TakeSkippedCount();
 					if (Settings::DebugLog) {
-						logs::info("[cut] passes/s={:.0f} skipped/s={:.0f} anchor={:+.0f} feet={:+.0f} camZ={:+.0f} slopeUsed={:.2f} off={}",
+						logs::info("[cut] passes/s={:.0f} skipped/s={:.0f} anchor={:+.0f} feet={:+.0f} camZ={:+.0f} slopeUsed={:.2f} lift={:.0f} blocked={} off={}",
 							cut / g_perfTimer, skipped / g_perfTimer, g_anchorZ, feet.z,
-							camNode ? camNode->world.translate.z - feet.z : 0.0f, Cut::LastSlope(), off);
+							camNode ? camNode->world.translate.z - feet.z : 0.0f, Cut::LastSlope(), g_lift, g_viewBlocked, off);
 					}
 					g_perfTimer = 0.0f;
 				}

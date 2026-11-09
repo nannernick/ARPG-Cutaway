@@ -15,6 +15,11 @@ namespace Settings
 	inline float ReanchorDistance = 150.0f;   // cut height only moves if you are this far above/below its anchor...
 	inline float ReanchorDelay = 1.0f;        // ...for this many seconds, on the ground
 	inline float ReanchorSpeed = 400.0f;      // units/second the cut glides to its new height
+	inline bool  AutoLift = true;             // raise the cut out of the way when nothing blocks the view
+	inline float ClearDelay = 0.75f;          // seconds the view must be clear before the cut rises
+	inline float LiftSpeed = 600.0f;          // units/second the cut rises when the view is clear
+	inline float DropSpeed = 2500.0f;         // units/second it comes back down when something blocks the view
+	inline float LiftMax = 1500.0f;           // how far it rises; at the top the cut is switched off
 
 	// [Cells] - per-interior overrides, keyed by lowercase editor ID
 	struct CellOverride

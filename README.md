@@ -22,6 +22,10 @@ Diablo-style games. Walls end at a clean line, and roofs and ceilings disappear.
   and rises (`Slope`) going away from the camera, so the walls on the far side of
   the room render full height. The tilt follows the camera's direction. The slope is
   clamped automatically so the plane never dips below the floor anywhere on screen.
+- **Only when needed:** with `AutoLift`, a few rays from the camera to your
+  character check whether walls or rock are in the way. If nothing blocks the view,
+  as in big caves and tall halls with the camera under the ceiling, the cut glides
+  up and out of the way. It drops back as soon as something blocks the view.
 - **Per-area overrides:** `[Cells]` sets a different height, or `off`, for
   specific interiors by editor ID.
 
@@ -63,6 +67,10 @@ All settings live in `Data/SKSE/Plugins/ARPGCutaway.ini`. Restart the game after
 | `Cut.ReanchorDistance` | 150 | Height change needed before the cut moves (e.g. another floor) |
 | `Cut.ReanchorDelay` | 1.0 | Seconds on the ground at the new height before it moves (jumps never count) |
 | `Cut.ReanchorSpeed` | 400 | How fast the cut glides to its new height (units/second) |
+| `Cut.AutoLift` | 1 | Raise the cut out of the way when nothing blocks the view |
+| `Cut.ClearDelay` | 0.75 | Seconds of clear view before it rises |
+| `Cut.LiftSpeed` / `DropSpeed` | 600 / 2500 | Rise / drop speed (units/second) |
+| `Cut.LiftMax` | 1500 | How far it rises; at the top the cut switches off |
 | `[Cells] <EditorID>` | — | Per-interior cut height, or `off` |
 | `Background.BlackFog` | 1 | Black interior fog while inside |
 | `Background.HideSky` | 1 | Hide the sky dome while inside |

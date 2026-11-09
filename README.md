@@ -1,4 +1,4 @@
-# Dynamic Occlusion Test
+# ARPG Cutaway
 
 An SKSE plugin that lets an ARPG-style camera (high, angled down at the player) see
 into Skyrim interiors. Roofs, ceilings and the tops of walls between the camera and
@@ -40,7 +40,7 @@ the sky dome. Both are restored when you leave.
 
 ## Settings
 
-All settings live in `Data/SKSE/Plugins/DynamicOcclusion.ini`. Restart the game after editing.
+All settings live in `Data/SKSE/Plugins/ARPGCutaway.ini`. Restart the game after editing.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -72,19 +72,19 @@ Mode 0 settings (`[Sweep]`, `[Hide]`) are documented in the INI itself.
 Requires xmake 3+ and Visual Studio 2022 Build Tools (C++ workload).
 
 ```
-git clone --recurse-submodules https://github.com/nannernick/Dynamic-Occlusion-Test
-cd Dynamic-Occlusion-Test
+git clone --recurse-submodules https://github.com/nannernick/ARPG-Cutaway
+cd ARPG-Cutaway
 xmake f -m releasedbg -y
 xmake
 ```
 
-The plugin is written to `build/windows/x64/releasedbg/DynamicOcclusion.dll`.
+The plugin is written to `build/windows/x64/releasedbg/ARPGCutaway.dll`.
 
 ## Install
 
-Copy `DynamicOcclusion.dll` and `dist/SKSE/Plugins/DynamicOcclusion.ini` into
+Copy `ARPGCutaway.dll` and `dist/SKSE/Plugins/ARPGCutaway.ini` into
 `Data/SKSE/Plugins/`. Launch with `skse64_loader.exe`. The log is written to
-`Documents/My Games/Skyrim Special Edition/SKSE/DynamicOcclusion.log`.
+`Documents/My Games/Skyrim Special Edition/SKSE/ARPGCutaway.log`.
 
 ### Requirements
 

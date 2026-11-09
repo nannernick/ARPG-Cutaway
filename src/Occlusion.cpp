@@ -2,7 +2,7 @@
 #include "Cut.h"
 #include "Settings.h"
 
-// Dynamic occlusion, v0.
+// ARPG Cutaway - Mode 0 (hide whole meshes) plus the shared per-frame tick.
 //
 // Every few frames we build a "corridor": the segment from the camera to the
 // player's head, padded by CorridorRadius. Every loaded reference whose 3D

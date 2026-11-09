@@ -2,7 +2,7 @@
 
 namespace
 {
-	constexpr const char* kIniPath = "Data\\SKSE\\Plugins\\DynamicOcclusion.ini";
+	constexpr const char* kIniPath = "Data\\SKSE\\Plugins\\ARPGCutaway.ini";
 
 	std::string Trim(const std::string& a_s)
 	{

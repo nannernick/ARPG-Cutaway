@@ -1,4 +1,5 @@
 #include "Occlusion.h"
+#include "Cut.h"
 #include "Settings.h"
 
 // Dynamic occlusion, v0.
@@ -341,6 +342,7 @@ namespace Occlusion
 		void Tick(RE::Actor* a_actor, float a_delta)
 		{
 			if (!Settings::Enabled) {
+				Cut::Deactivate();
 				return;
 			}
 			auto* player = RE::PlayerCharacter::GetSingleton();
@@ -363,8 +365,38 @@ namespace Occlusion
 			SetSkyHidden(Settings::HideSky && cell->IsInteriorCell());
 			if (Settings::InteriorOnly && !cell->IsInteriorCell()) {
 				RestoreShapes();
+				Cut::Deactivate();
 				return;
 			}
+
+			if (Settings::Mode == 1) {
+				// Horizontal cut mode: the render hook does the work; no per-mesh hiding.
+				if (!g_hidden.empty()) {
+					RestoreShapes();
+				}
+				auto*       camera = RE::PlayerCamera::GetSingleton();
+				auto*       camNode = camera ? camera->cameraRoot.get() : nullptr;
+				const auto  feet = player->GetPosition();
+				if (camNode) {
+					Cut::Publish(feet.z + Settings::CutHeight, feet, camNode->world.translate);
+				} else {
+					Cut::Deactivate();
+				}
+
+				g_perfTimer += a_delta;
+				if (g_perfTimer >= 2.0f) {
+					const auto cut = Cut::TakeCutPassCount();
+					const auto skipped = Cut::TakeSkippedCount();
+					if (Settings::DebugLog) {
+						logs::info("[cut] passes/s={:.0f} skipped/s={:.0f} planeZ={:+.0f} camZ={:+.0f}",
+							cut / g_perfTimer, skipped / g_perfTimer, Settings::CutHeight,
+							camNode ? camNode->world.translate.z - feet.z : 0.0f);
+					}
+					g_perfTimer = 0.0f;
+				}
+				return;
+			}
+			Cut::Deactivate();
 
 			g_perfTimer += a_delta;
 			if (g_perfTimer >= 2.0f) {
@@ -407,6 +439,7 @@ namespace Occlusion
 
 	void RestoreAll()
 	{
+		Cut::Deactivate();
 		RestoreShapes();
 		RestoreFog();
 		SetSkyHidden(false);

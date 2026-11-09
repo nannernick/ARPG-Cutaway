@@ -5,6 +5,11 @@ namespace Settings
 	// [General]
 	inline bool Enabled = true;
 	inline bool InteriorOnly = true;
+	inline int  Mode = 1;                     // 1 = horizontal cut (clip plane), 0 = hide whole meshes
+
+	// [Cut] - Mode 1
+	inline float CutHeight = 220.0f;          // cut plane height above the player's feet
+	inline float CutRadius = 2500.0f;         // only meshes within this horizontal distance get cut
 
 	// [Sweep] - the "corridor" from the camera to the player's head.
 	inline float HeadHeight = 120.0f;         // segment ends this far above the player's feet

@@ -1,12 +1,14 @@
+#include "Cut.h"
 #include "Occlusion.h"
 #include "Settings.h"
 
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 {
-	SKSE::Init(a_skse);
+	SKSE::Init(a_skse, { .trampoline = true, .trampolineSize = 64 });
 
 	Settings::Load();
 	Occlusion::Install();
+	Cut::Install();
 
 	SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_msg) {
 		if (!a_msg) {

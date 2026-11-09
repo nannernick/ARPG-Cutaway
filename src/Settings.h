@@ -4,7 +4,7 @@ namespace Settings
 {
 	// [General]
 	inline bool Enabled = true;
-	inline bool InteriorOnly = false;
+	inline bool InteriorOnly = true;
 
 	// [Sweep] - the "corridor" from the camera to the player's head.
 	inline float HeadHeight = 120.0f;         // segment ends this far above the player's feet
@@ -19,6 +19,7 @@ namespace Settings
 
 	// [Background]
 	inline bool BlackFog = true;              // experiment: force interior fog colors to black
+	inline bool HideSky = true;               // hide the sky dome while inside (it shows through removed roofs)
 
 	// [Debug]
 	inline bool DebugLog = true;

@@ -43,6 +43,7 @@ namespace Occlusion
 		std::uint32_t                                   g_sweepId{ 0 };
 		float                                           g_sweepTimer{ 0.0f };
 		std::uint32_t                                   g_loggedShapes{ 0 };
+		bool                                            g_skyHidden{ false };
 
 		float         g_perfTimer{ 0.0f };
 		std::uint32_t g_perfSweeps{ 0 };
@@ -146,6 +147,30 @@ namespace Occlusion
 			a_data->fogColorFar.red = 0;
 			a_data->fogColorFar.green = 0;
 			a_data->fogColorFar.blue = 0;
+		}
+
+		// The sky dome still renders behind interiors. With the roof gone it is what
+		// shows through (night sky = dark blue), so hide it while inside.
+		void SetSkyHidden(bool a_hide)
+		{
+			auto* sky = RE::Sky::GetSingleton();
+			auto* root = sky ? sky->root.get() : nullptr;
+			if (!root) {
+				return;
+			}
+			if (a_hide) {
+				if (!g_skyHidden && Settings::DebugLog) {
+					logs::info("[sky] hidden");
+				}
+				root->SetAppCulled(true);  // every frame, in case the engine flips it back
+				g_skyHidden = true;
+			} else if (g_skyHidden) {
+				root->SetAppCulled(false);
+				g_skyHidden = false;
+				if (Settings::DebugLog) {
+					logs::info("[sky] restored");
+				}
+			}
 		}
 
 		void OnCellChanged(RE::TESObjectCELL* a_cell)
@@ -307,6 +332,7 @@ namespace Occlusion
 			if (!cell) {
 				return;
 			}
+			SetSkyHidden(Settings::HideSky && cell->IsInteriorCell());
 			if (Settings::InteriorOnly && !cell->IsInteriorCell()) {
 				RestoreShapes();
 				return;
@@ -355,6 +381,7 @@ namespace Occlusion
 	{
 		RestoreShapes();
 		RestoreFog();
+		SetSkyHidden(false);
 		g_lastCell = nullptr;
 	}
 }

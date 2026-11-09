@@ -85,12 +85,13 @@ namespace Settings
 		Linger = GetFloat(ini, "Hide.Linger", Linger, 0.0f, 10.0f);
 
 		BlackFog = GetBool(ini, "Background.BlackFog", BlackFog);
+		HideSky = GetBool(ini, "Background.HideSky", HideSky);
 
 		DebugLog = GetBool(ini, "Debug.Log", DebugLog);
 
 		logs::info("settings: enabled={} interiorOnly={} head={:.0f} corridor={:.0f} interval={:.2f} minCam={:.0f}",
 			Enabled, InteriorOnly, HeadHeight, CorridorRadius, SweepInterval, MinCameraDistance);
-		logs::info("settings: minHeight={:.0f} maxShapeRadius={:.0f} linger={:.2f} blackFog={} debugLog={}",
-			MinHeight, MaxShapeRadius, Linger, BlackFog, DebugLog);
+		logs::info("settings: minHeight={:.0f} maxShapeRadius={:.0f} linger={:.2f} blackFog={} hideSky={} debugLog={}",
+			MinHeight, MaxShapeRadius, Linger, BlackFog, HideSky, DebugLog);
 	}
 }

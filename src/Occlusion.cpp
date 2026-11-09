@@ -48,6 +48,15 @@ namespace Occlusion
 		std::uint32_t                                   g_loggedShapes{ 0 };
 		bool                                            g_skyHidden{ false };
 
+		// Cut-mode anchor: the cut height is fixed per area and only re-anchors on a
+		// sustained change in floor level (another storey), gliding to the new height.
+		bool                            g_anchorValid{ false };
+		float                           g_anchorZ{ 0.0f };
+		float                           g_anchorTarget{ 0.0f };
+		bool                            g_anchorMoving{ false };
+		float                           g_reanchorTimer{ 0.0f };
+		const Settings::CellOverride*   g_cellOverride{ nullptr };
+
 		float         g_perfTimer{ 0.0f };
 		std::uint32_t g_perfSweeps{ 0 };
 		std::uint64_t g_perfRefs{ 0 };
@@ -182,9 +191,22 @@ namespace Occlusion
 			RestoreFog();
 			g_loggedRefs.clear();
 			g_loggedShapes = 0;
+			g_anchorValid = false;
+			g_anchorMoving = false;
+			g_reanchorTimer = 0.0f;
+			g_cellOverride = nullptr;
 
 			if (!a_cell) {
 				return;
+			}
+
+			g_cellOverride = Settings::FindCellOverride(a_cell->GetFormEditorID());
+			if (g_cellOverride) {
+				if (g_cellOverride->off) {
+					logs::info("[cut] override for '{}': off", SafeStr(a_cell->GetFormEditorID()));
+				} else {
+					logs::info("[cut] override for '{}': height {:.0f}", SafeStr(a_cell->GetFormEditorID()), g_cellOverride->height);
+				}
 			}
 
 			const bool interior = a_cell->IsInteriorCell();
@@ -374,11 +396,60 @@ namespace Occlusion
 				if (!g_hidden.empty()) {
 					RestoreShapes();
 				}
-				auto*       camera = RE::PlayerCamera::GetSingleton();
-				auto*       camNode = camera ? camera->cameraRoot.get() : nullptr;
-				const auto  feet = player->GetPosition();
-				if (camNode) {
-					Cut::Publish(feet.z + Settings::CutHeight, feet, camNode->world.translate);
+				auto*      camera = RE::PlayerCamera::GetSingleton();
+				auto*      camNode = camera ? camera->cameraRoot.get() : nullptr;
+				const auto feet = player->GetPosition();
+
+				// Per-area anchor with a dead zone, so stairs and bumps don't move the cut.
+				if (!g_anchorValid) {
+					g_anchorZ = feet.z;
+					g_anchorValid = true;
+					g_anchorMoving = false;
+				}
+				if (std::abs(feet.z - g_anchorZ) > Settings::ReanchorDistance && !g_anchorMoving) {
+					g_reanchorTimer += a_delta;
+					if (g_reanchorTimer >= Settings::ReanchorDelay) {
+						g_anchorTarget = feet.z;
+						g_anchorMoving = true;
+						g_reanchorTimer = 0.0f;
+						if (Settings::DebugLog) {
+							logs::info("[cut] re-anchoring {:+.0f} -> {:+.0f}", g_anchorZ, g_anchorTarget);
+						}
+					}
+				} else {
+					g_reanchorTimer = 0.0f;
+				}
+				if (g_anchorMoving) {
+					const float step = Settings::ReanchorSpeed * a_delta;
+					const float diff = g_anchorTarget - g_anchorZ;
+					if (std::abs(diff) <= step) {
+						g_anchorZ = g_anchorTarget;
+						g_anchorMoving = false;
+					} else {
+						g_anchorZ += diff > 0.0f ? step : -step;
+					}
+				}
+
+				const bool off = g_cellOverride && g_cellOverride->off;
+				if (camNode && !off) {
+					const float  height = g_cellOverride ? g_cellOverride->height : Settings::CutHeight;
+					const float  cutZ = g_anchorZ + height;
+					const auto&  camPos = camNode->world.translate;
+
+					// Keep points with z <= cutZ + slope * (distance past the player, away from
+					// the camera). The render side clamps the slope to keep the floor on screen.
+					Cut::Params params;
+					params.cutZ = cutZ;
+					params.floorZ = g_anchorZ;
+					float       ax = feet.x - camPos.x;
+					float       ay = feet.y - camPos.y;
+					const float aLen = std::sqrt(ax * ax + ay * ay);
+					if (aLen > 1.0f) {
+						params.ax = ax / aLen;
+						params.ay = ay / aLen;
+						params.slope = Settings::CutSlope;
+					}
+					Cut::Publish(params, feet, camPos);
 				} else {
 					Cut::Deactivate();
 				}
@@ -388,9 +459,9 @@ namespace Occlusion
 					const auto cut = Cut::TakeCutPassCount();
 					const auto skipped = Cut::TakeSkippedCount();
 					if (Settings::DebugLog) {
-						logs::info("[cut] passes/s={:.0f} skipped/s={:.0f} planeZ={:+.0f} camZ={:+.0f}",
-							cut / g_perfTimer, skipped / g_perfTimer, Settings::CutHeight,
-							camNode ? camNode->world.translate.z - feet.z : 0.0f);
+						logs::info("[cut] passes/s={:.0f} skipped/s={:.0f} anchor={:+.0f} feet={:+.0f} camZ={:+.0f} slopeUsed={:.2f} off={}",
+							cut / g_perfTimer, skipped / g_perfTimer, g_anchorZ, feet.z,
+							camNode ? camNode->world.translate.z - feet.z : 0.0f, Cut::LastSlope(), off);
 					}
 					g_perfTimer = 0.0f;
 				}

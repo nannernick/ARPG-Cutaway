@@ -11,6 +11,19 @@ namespace Settings
 	inline float CutHeight = 220.0f;          // cut plane height above the player's feet
 	inline float CutRadius = 2500.0f;         // only meshes within this horizontal distance get cut
 	inline bool  CutAllGeometry = true;       // draw every main-camera mesh with the cut projection (consistent depth)
+	inline float CutSlope = 1.0f;             // how fast the cut rises behind you, away from the camera (1 = 45 deg, 0 = flat)
+	inline float ReanchorDistance = 120.0f;   // cut height only moves if you are this far above/below its anchor...
+	inline float ReanchorDelay = 0.5f;        // ...for this many seconds
+	inline float ReanchorSpeed = 400.0f;      // units/second the cut glides to its new height
+
+	// [Cells] - per-interior overrides, keyed by lowercase editor ID
+	struct CellOverride
+	{
+		bool  off{ false };
+		float height{ 0.0f };
+	};
+	inline std::unordered_map<std::string, CellOverride> CellOverrides;
+	const CellOverride* FindCellOverride(const char* a_editorID);
 
 	// [Sweep] - the "corridor" from the camera to the player's head.
 	inline float HeadHeight = 120.0f;         // segment ends this far above the player's feet

@@ -60,6 +60,12 @@ namespace
 		return std::clamp(v, a_min, a_max);
 	}
 
+	std::string Lower(std::string a_s)
+	{
+		std::transform(a_s.begin(), a_s.end(), a_s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		return a_s;
+	}
+
 	bool GetBool(const std::unordered_map<std::string, std::string>& a_ini, const char* a_key, bool a_default)
 	{
 		return GetFloat(a_ini, a_key, a_default ? 1.0f : 0.0f, 0.0f, 1.0f) > 0.5f;
@@ -78,6 +84,29 @@ namespace Settings
 		CutHeight = GetFloat(ini, "Cut.Height", CutHeight, 0.0f, 2000.0f);
 		CutRadius = GetFloat(ini, "Cut.Radius", CutRadius, 0.0f, 100000.0f);
 		CutAllGeometry = GetBool(ini, "Cut.AllGeometry", CutAllGeometry);
+		CutSlope = GetFloat(ini, "Cut.Slope", CutSlope, 0.0f, 20.0f);
+		ReanchorDistance = GetFloat(ini, "Cut.ReanchorDistance", ReanchorDistance, 0.0f, 5000.0f);
+		ReanchorDelay = GetFloat(ini, "Cut.ReanchorDelay", ReanchorDelay, 0.0f, 30.0f);
+		ReanchorSpeed = GetFloat(ini, "Cut.ReanchorSpeed", ReanchorSpeed, 1.0f, 100000.0f);
+
+		CellOverrides.clear();
+		for (const auto& [key, value] : ini) {
+			if (key.rfind("Cells.", 0) != 0 || key.size() <= 6) {
+				continue;
+			}
+			CellOverride entry;
+			if (Lower(value) == "off") {
+				entry.off = true;
+			} else {
+				char* end = nullptr;
+				entry.height = std::strtof(value.c_str(), &end);
+				if (end == value.c_str()) {
+					logs::warn("settings: [Cells] {} = '{}' is not a number or 'off', ignored", key.substr(6), value);
+					continue;
+				}
+			}
+			CellOverrides[Lower(key.substr(6))] = entry;
+		}
 
 		HeadHeight = GetFloat(ini, "Sweep.HeadHeight", HeadHeight, 0.0f, 500.0f);
 		CorridorRadius = GetFloat(ini, "Sweep.CorridorRadius", CorridorRadius, 0.0f, 5000.0f);
@@ -97,10 +126,21 @@ namespace Settings
 		DebugLog = GetBool(ini, "Debug.Log", DebugLog);
 
 		logs::info("settings: mode={} ({}) cutHeight={:.0f} cutRadius={:.0f} cutAllGeometry={}", Mode, Mode == 1 ? "cut" : "hide", CutHeight, CutRadius, CutAllGeometry);
+		logs::info("settings: cutSlope={:.2f} reanchor={:.0f}u/{:.2f}s speed={:.0f} cellOverrides={}",
+			CutSlope, ReanchorDistance, ReanchorDelay, ReanchorSpeed, CellOverrides.size());
 		logs::info("settings: enabled={} interiorOnly={} head={:.0f} corridor={:.0f} interval={:.2f} minCam={:.0f}",
 			Enabled, InteriorOnly, HeadHeight, CorridorRadius, SweepInterval, MinCameraDistance);
 		logs::info("settings: ceilingHeight={:.0f} behindMargin={:.0f} hysteresis={:.0f}", CeilingHeight, BehindMargin, Hysteresis);
 		logs::info("settings: minHeight={:.0f} maxShapeRadius={:.0f} linger={:.2f} blackFog={} hideSky={} debugLog={}",
 			MinHeight, MaxShapeRadius, Linger, BlackFog, HideSky, DebugLog);
+	}
+
+	const CellOverride* FindCellOverride(const char* a_editorID)
+	{
+		if (!a_editorID || !a_editorID[0]) {
+			return nullptr;
+		}
+		const auto it = CellOverrides.find(Lower(a_editorID));
+		return it != CellOverrides.end() ? &it->second : nullptr;
 	}
 }

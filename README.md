@@ -12,9 +12,18 @@ There are two modes, set with `[General] Mode` in the INI.
 
 ### Mode 1: horizontal cut (default)
 
-Everything above a height `[Cut] Height` over your feet is clipped away by the GPU,
-like the cutaway view in Diablo-style games. Walls end at a clean line, and roofs
-and ceilings disappear.
+Everything above a cut plane is clipped away by the GPU, like the cutaway view in
+Diablo-style games. Walls end at a clean line, and roofs and ceilings disappear.
+
+- **Static per area:** the cut height is anchored when you enter a cell and only
+  moves on a sustained change in floor level (another storey), gliding there. Stairs
+  and bumps don't move it.
+- **Far walls stay:** the plane sits at `Height` above the floor at your position
+  and rises (`Slope`) going away from the camera, so the walls on the far side of
+  the room render full height. The tilt follows the camera's direction. The slope is
+  clamped automatically so the plane never dips below the floor anywhere on screen.
+- **Per-area overrides:** `[Cells]` sets a different height, or `off`, for
+  specific interiors by editor ID.
 
 It hooks the renderer's per-mesh draw call and swaps in a projection matrix whose
 near clip plane is tilted to lie flat at the cut height (an *oblique near plane*,
@@ -47,9 +56,14 @@ All settings live in `Data/SKSE/Plugins/ARPGCutaway.ini`. Restart the game after
 | `General.Enabled` | 1 | Master switch |
 | `General.InteriorOnly` | 1 | Only run in interior cells |
 | `General.Mode` | 1 | 1 = horizontal cut, 0 = hide whole meshes |
-| `Cut.Height` | 220 | Cut height above your feet (a human is ~128) |
+| `Cut.Height` | 220 | Cut height above the floor at your position (a human is ~128) |
 | `Cut.Radius` | 2500 | Selective cut only: how far from you meshes get cut |
 | `Cut.AllGeometry` | 1 | Draw every mesh with the cut projection (consistent depth) |
+| `Cut.Slope` | 1.0 | How fast the cut rises behind you (1 = 45°, 0 = flat); clamped to keep the floor |
+| `Cut.ReanchorDistance` | 120 | Height change needed before the cut moves (e.g. another floor) |
+| `Cut.ReanchorDelay` | 0.5 | Seconds you must stay at the new height before it moves |
+| `Cut.ReanchorSpeed` | 400 | How fast the cut glides to its new height (units/second) |
+| `[Cells] <EditorID>` | — | Per-interior cut height, or `off` |
 | `Background.BlackFog` | 1 | Black interior fog while inside |
 | `Background.HideSky` | 1 | Hide the sky dome while inside |
 | `Debug.Log` | 1 | Write diagnostics to the log |

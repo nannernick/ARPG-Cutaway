@@ -6,7 +6,13 @@ namespace Cut
 	namespace
 	{
 		std::atomic<bool>          g_active{ false };
-		std::atomic<float>         g_planeZ{ 0.0f };
+		std::atomic<float>         g_cutZ{ 0.0f };
+		std::atomic<float>         g_floorZ{ 0.0f };
+		std::atomic<float>         g_ax{ 0.0f };
+		std::atomic<float>         g_ay{ 0.0f };
+		std::atomic<float>         g_slope{ 0.0f };
+		std::atomic<float>         g_lastSlope{ 0.0f };
+		constexpr float            kFloorMargin = 20.0f;  // keep the plane this far above the floor on screen
 		std::atomic<float>         g_playerX{ 0.0f };
 		std::atomic<float>         g_playerY{ 0.0f };
 		std::atomic<float>         g_camX{ 0.0f };
@@ -72,7 +78,49 @@ namespace Cut
 
 				auto*       geom = a_pass->geometry;
 				const auto& b = geom->worldBound;
-				const float planeZ = g_planeZ.load(std::memory_order_relaxed);
+
+				auto* shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+				if (!shadowState) {
+					func(a_pass, a_technique, a_alphaTest, a_renderFlags);
+					return;
+				}
+				auto&       data = shadowState->GetRuntimeData();
+				auto&       cam = *reinterpret_cast<RE::BSGraphics::ViewData*>(&data.cameraData);
+				const auto& eye = *reinterpret_cast<RE::NiPoint3*>(&data.posAdjust);
+				const auto& V = cam.viewMat;
+
+				// Build the world plane. Start from the configured slope, then clamp it so
+				// the plane stays above the floor where the bottom edge of the screen meets it.
+				const float px = g_playerX.load(std::memory_order_relaxed);
+				const float py = g_playerY.load(std::memory_order_relaxed);
+				const float cutZ = g_cutZ.load(std::memory_order_relaxed);
+				const float floorZ = g_floorZ.load(std::memory_order_relaxed);
+				const float ax = g_ax.load(std::memory_order_relaxed);
+				const float ay = g_ay.load(std::memory_order_relaxed);
+				float       slope = g_slope.load(std::memory_order_relaxed);
+				if (slope > 0.0f && std::abs(cam.projMat._22) > 1e-4f) {
+					// Bottom-centre screen ray: view dir (0, -1/P22, 1), to world via R^T.
+					const float vy = -1.0f / cam.projMat._22;
+					const float dwx = vy * V._12 + V._13;
+					const float dwy = vy * V._22 + V._23;
+					const float dwz = vy * V._32 + V._33;
+					if (dwz < -1e-3f && eye.z > floorZ) {
+						const float t = (floorZ - eye.z) / dwz;
+						const float fx = eye.x + t * dwx;
+						const float fy = eye.y + t * dwy;
+						const float towardCam = -(ax * (fx - px) + ay * (fy - py));
+						if (towardCam > 1.0f) {
+							const float maxSlope = (cutZ - floorZ - kFloorMargin) / towardCam;
+							slope = std::clamp(maxSlope, 0.0f, slope);
+						}
+					}
+				}
+				g_lastSlope.store(slope, std::memory_order_relaxed);
+				const float nx = slope * ax;
+				const float ny = slope * ay;
+				const float nz = -1.0f;
+				const float nd = cutZ - slope * (ax * px + ay * py);
+				const float nLen = std::sqrt(nx * nx + ny * ny + nz * nz);
 
 				// Selective mode: only meshes that cross the cut, in range, not characters.
 				// AllGeometry mode skips this so every mesh writes depth with the same
@@ -81,20 +129,12 @@ namespace Cut
 					const float dx = b.center.x - g_playerX.load(std::memory_order_relaxed);
 					const float dy = b.center.y - g_playerY.load(std::memory_order_relaxed);
 					const float range = Settings::CutRadius + b.radius;
-					if (b.center.z + b.radius <= planeZ || dx * dx + dy * dy > range * range || BelongsToActor(geom)) {
+					const bool entirelyKept = nx * b.center.x + ny * b.center.y + nz * b.center.z + nd >= b.radius * nLen;
+					if (entirelyKept || dx * dx + dy * dy > range * range || BelongsToActor(geom)) {
 						func(a_pass, a_technique, a_alphaTest, a_renderFlags);
 						return;
 					}
 				}
-
-				auto* shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
-				if (!shadowState) {
-					func(a_pass, a_technique, a_alphaTest, a_renderFlags);
-					return;
-				}
-				auto& data = shadowState->GetRuntimeData();
-				auto& cam = *reinterpret_cast<RE::BSGraphics::ViewData*>(&data.cameraData);
-				const auto& eye = *reinterpret_cast<RE::NiPoint3*>(&data.posAdjust);
 
 				// Only the main camera: skip shadow maps, reflections, cubemaps, and
 				// any non-perspective projection. Also need the eye above the plane.
@@ -103,15 +143,21 @@ namespace Cut
 				const float ez = eye.z - g_camZ.load(std::memory_order_relaxed);
 				const bool  mainCamera = ex * ex + ey * ey + ez * ez < 50.0f * 50.0f;
 				const bool  perspective = std::abs(cam.projMat._34 - 1.0f) < 0.01f && std::abs(cam.projMat._44) < 0.01f;
-				if (!mainCamera || !perspective || eye.z <= planeZ + 10.0f) {
+				const float eyeSide = nx * eye.x + ny * eye.y + nz * eye.z + nd;  // must be on the clipped side
+				if (!mainCamera || !perspective || eyeSide > -10.0f * nLen) {
 					g_skipped.fetch_add(1, std::memory_order_relaxed);
 					func(a_pass, a_technique, a_alphaTest, a_renderFlags);
 					return;
 				}
 
-				// World plane z = planeZ, keeping everything below it, in view space.
-				// Row 3 of the view matrix is world up expressed in view space.
-				const Vector4 plane{ -cam.viewMat._31, -cam.viewMat._32, -cam.viewMat._33, planeZ - eye.z };
+				// World plane -> view space. View = (world - eye) * R, so the normal
+				// maps as n * R and the distance is the plane evaluated at the eye.
+				const Vector4 plane{
+					nx * V._11 + ny * V._21 + nz * V._31,
+					nx * V._12 + ny * V._22 + nz * V._32,
+					nx * V._13 + ny * V._23 + nz * V._33,
+					eyeSide
+				};
 
 				// Every main pass in a frame has the same camera and plane, so cache the result.
 				static Matrix  s_inProj{}, s_inProjU{}, s_outProj{}, s_outProjU{};
@@ -177,9 +223,13 @@ namespace Cut
 		logs::info("[cut] render-pass hook installed at {:#x}", site);
 	}
 
-	void Publish(float a_planeZ, const RE::NiPoint3& a_player, const RE::NiPoint3& a_camera)
+	void Publish(const Params& a_params, const RE::NiPoint3& a_player, const RE::NiPoint3& a_camera)
 	{
-		g_planeZ.store(a_planeZ, std::memory_order_relaxed);
+		g_cutZ.store(a_params.cutZ, std::memory_order_relaxed);
+		g_floorZ.store(a_params.floorZ, std::memory_order_relaxed);
+		g_ax.store(a_params.ax, std::memory_order_relaxed);
+		g_ay.store(a_params.ay, std::memory_order_relaxed);
+		g_slope.store(a_params.slope, std::memory_order_relaxed);
 		g_playerX.store(a_player.x, std::memory_order_relaxed);
 		g_playerY.store(a_player.y, std::memory_order_relaxed);
 		g_camX.store(a_camera.x, std::memory_order_relaxed);
@@ -196,6 +246,11 @@ namespace Cut
 	std::uint32_t TakeCutPassCount()
 	{
 		return g_cutPasses.exchange(0, std::memory_order_relaxed);
+	}
+
+	float LastSlope()
+	{
+		return g_lastSlope.load(std::memory_order_relaxed);
 	}
 
 	std::uint32_t TakeSkippedCount()

@@ -14,6 +14,8 @@ namespace Settings
 
 	// [Hide]
 	inline float MinHeight = 200.0f;          // shape center must be this far above the player's feet
+	inline float CeilingHeight = 350.0f;      // at/above this: hidden anywhere near (roofs); below: camera side only
+	inline float BehindMargin = 100.0f;       // how far behind the player a wall-height piece may be and still hide
 	inline float MaxShapeRadius = 1500.0f;    // never hide shapes bigger than this (whole-room shells)
 	inline float Linger = 0.4f;               // seconds a shape stays hidden after it stops qualifying
 

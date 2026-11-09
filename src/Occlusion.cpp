@@ -8,6 +8,8 @@
 // reaches into that corridor is walked down to its individual meshes
 // (BSGeometry). A mesh is hidden (app-culled) when:
 //   - its bound center is at least MinHeight above the player's feet,
+//   - it is a "ceiling" piece (center >= CeilingHeight), or it is on the
+//     camera's side of the player (walls behind the player stay),
 //   - its bound radius is <= MaxShapeRadius (so whole-room shells survive),
 //   - its bound comes within CorridorRadius of the segment.
 // Hidden meshes come back Linger seconds after they stop qualifying, and
@@ -230,6 +232,18 @@ namespace Occlusion
 			if (tes && segLen >= Settings::MinCameraDistance) {
 				const float corridor = Settings::CorridorRadius;
 				const float minZ = feet.z + Settings::MinHeight;
+				const float ceilZ = feet.z + Settings::CeilingHeight;
+
+				// Horizontal direction from the player toward the camera. Wall-height
+				// pieces only hide on this side, so walls behind the player stay.
+				float      toCamX = camPos.x - feet.x;
+				float      toCamY = camPos.y - feet.y;
+				const float toCamLen = std::sqrt(toCamX * toCamX + toCamY * toCamY);
+				const bool haveDir = toCamLen > 1.0f;
+				if (haveDir) {
+					toCamX /= toCamLen;
+					toCamY /= toCamLen;
+				}
 
 				tes->ForEachReferenceInRange(a_player, segLen + corridor, [&](RE::TESObjectREFR* a_ref) {
 					++refsVisited;
@@ -262,12 +276,15 @@ namespace Occlusion
 						const bool  high = b.center.z >= minZ;
 						const bool  notTooBig = b.radius <= Settings::MaxShapeRadius;
 						const bool  inCorridor = DistSqToSegment(b.center, camPos, head) <= reach * reach;
-						const bool  hide = high && notTooBig && inCorridor;
+						const float along = haveDir ? (b.center.x - feet.x) * toCamX + (b.center.y - feet.y) * toCamY : 0.0f;
+						const bool  ceiling = b.center.z >= ceilZ;
+						const bool  cameraSide = along >= -Settings::BehindMargin;
+						const bool  hide = high && notTooBig && inCorridor && (ceiling || cameraSide);
 
 						if (logRef && g_loggedShapes < kMaxShapeLogsPerCell) {
 							++g_loggedShapes;
-							logs::info("[shape]   '{}' z={:+.0f} r={:.0f} high={} notTooBig={} inCorridor={} -> hide={}",
-								SafeStr(a_shape->name.c_str()), b.center.z - feet.z, b.radius, high, notTooBig, inCorridor, hide);
+							logs::info("[shape]   '{}' z={:+.0f} r={:.0f} along={:+.0f} high={} ceiling={} cameraSide={} notTooBig={} inCorridor={} -> hide={}",
+								SafeStr(a_shape->name.c_str()), b.center.z - feet.z, b.radius, along, high, ceiling, cameraSide, notTooBig, inCorridor, hide);
 						}
 						if (!hide) {
 							return;

@@ -74,13 +74,17 @@ namespace Cut
 				const auto& b = geom->worldBound;
 				const float planeZ = g_planeZ.load(std::memory_order_relaxed);
 
-				// Entirely below the cut, out of range, or part of a character: draw normally.
-				const float dx = b.center.x - g_playerX.load(std::memory_order_relaxed);
-				const float dy = b.center.y - g_playerY.load(std::memory_order_relaxed);
-				const float range = Settings::CutRadius + b.radius;
-				if (b.center.z + b.radius <= planeZ || dx * dx + dy * dy > range * range || BelongsToActor(geom)) {
-					func(a_pass, a_technique, a_alphaTest, a_renderFlags);
-					return;
+				// Selective mode: only meshes that cross the cut, in range, not characters.
+				// AllGeometry mode skips this so every mesh writes depth with the same
+				// projection; otherwise uncut meshes fail the depth test against cut ones.
+				if (!Settings::CutAllGeometry) {
+					const float dx = b.center.x - g_playerX.load(std::memory_order_relaxed);
+					const float dy = b.center.y - g_playerY.load(std::memory_order_relaxed);
+					const float range = Settings::CutRadius + b.radius;
+					if (b.center.z + b.radius <= planeZ || dx * dx + dy * dy > range * range || BelongsToActor(geom)) {
+						func(a_pass, a_technique, a_alphaTest, a_renderFlags);
+						return;
+					}
 				}
 
 				auto* shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
@@ -109,13 +113,32 @@ namespace Cut
 				// Row 3 of the view matrix is world up expressed in view space.
 				const Vector4 plane{ -cam.viewMat._31, -cam.viewMat._32, -cam.viewMat._33, planeZ - eye.z };
 
-				Matrix proj = cam.projMat;
-				Matrix projU = cam.projMatrixUnjittered;
-				if (!MakeOblique(proj, plane) || !MakeOblique(projU, plane)) {
-					g_skipped.fetch_add(1, std::memory_order_relaxed);
-					func(a_pass, a_technique, a_alphaTest, a_renderFlags);
-					return;
+				// Every main pass in a frame has the same camera and plane, so cache the result.
+				static Matrix  s_inProj{}, s_inProjU{}, s_outProj{}, s_outProjU{};
+				static Vector4 s_inPlane{};
+				static bool    s_cacheValid = false;
+				const bool     cacheHit = s_cacheValid &&
+				                      std::memcmp(&s_inProj, &cam.projMat, sizeof(Matrix)) == 0 &&
+				                      std::memcmp(&s_inProjU, &cam.projMatrixUnjittered, sizeof(Matrix)) == 0 &&
+				                      std::memcmp(&s_inPlane, &plane, sizeof(Vector4)) == 0;
+				if (!cacheHit) {
+					Matrix proj = cam.projMat;
+					Matrix projU = cam.projMatrixUnjittered;
+					s_cacheValid = false;
+					if (!MakeOblique(proj, plane) || !MakeOblique(projU, plane)) {
+						g_skipped.fetch_add(1, std::memory_order_relaxed);
+						func(a_pass, a_technique, a_alphaTest, a_renderFlags);
+						return;
+					}
+					s_inProj = cam.projMat;
+					s_inProjU = cam.projMatrixUnjittered;
+					s_inPlane = plane;
+					s_outProj = proj;
+					s_outProjU = projU;
+					s_cacheValid = true;
 				}
+				const Matrix& proj = s_outProj;
+				const Matrix& projU = s_outProjU;
 
 				const Matrix origProj = cam.projMat;
 				const Matrix origViewProj = cam.viewProjMat;

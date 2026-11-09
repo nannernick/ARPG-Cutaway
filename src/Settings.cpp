@@ -77,6 +77,7 @@ namespace Settings
 		Mode = static_cast<int>(GetFloat(ini, "General.Mode", static_cast<float>(Mode), 0.0f, 1.0f) + 0.5f);
 		CutHeight = GetFloat(ini, "Cut.Height", CutHeight, 0.0f, 2000.0f);
 		CutRadius = GetFloat(ini, "Cut.Radius", CutRadius, 0.0f, 100000.0f);
+		CutAllGeometry = GetBool(ini, "Cut.AllGeometry", CutAllGeometry);
 
 		HeadHeight = GetFloat(ini, "Sweep.HeadHeight", HeadHeight, 0.0f, 500.0f);
 		CorridorRadius = GetFloat(ini, "Sweep.CorridorRadius", CorridorRadius, 0.0f, 5000.0f);
@@ -95,7 +96,7 @@ namespace Settings
 
 		DebugLog = GetBool(ini, "Debug.Log", DebugLog);
 
-		logs::info("settings: mode={} ({}) cutHeight={:.0f} cutRadius={:.0f}", Mode, Mode == 1 ? "cut" : "hide", CutHeight, CutRadius);
+		logs::info("settings: mode={} ({}) cutHeight={:.0f} cutRadius={:.0f} cutAllGeometry={}", Mode, Mode == 1 ? "cut" : "hide", CutHeight, CutRadius, CutAllGeometry);
 		logs::info("settings: enabled={} interiorOnly={} head={:.0f} corridor={:.0f} interval={:.2f} minCam={:.0f}",
 			Enabled, InteriorOnly, HeadHeight, CorridorRadius, SweepInterval, MinCameraDistance);
 		logs::info("settings: ceilingHeight={:.0f} behindMargin={:.0f} hysteresis={:.0f}", CeilingHeight, BehindMargin, Hysteresis);

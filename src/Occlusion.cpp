@@ -255,10 +255,11 @@ namespace Occlusion
 						return kContinue;
 					}
 					const auto& rb = root->worldBound;
-					if (rb.center.z + rb.radius < minZ) {
+					const float slack = Settings::Hysteresis;  // so already-hidden pieces still get visited
+					if (rb.center.z + rb.radius < minZ - slack) {
 						return kContinue;  // entirely below the cutoff height
 					}
-					const float rootReach = corridor + rb.radius;
+					const float rootReach = corridor + rb.radius + slack;
 					if (DistSqToSegment(rb.center, camPos, head) > rootReach * rootReach) {
 						return kContinue;  // nowhere near the corridor
 					}
@@ -272,13 +273,18 @@ namespace Occlusion
 
 					auto onShape = [&](RE::NiAVObject* a_shape) {
 						const auto& b = a_shape->worldBound;
-						const float reach = corridor + b.radius;
-						const bool  high = b.center.z >= minZ;
+						// Hysteresis: a piece that is already hidden only comes back once it is
+						// clearly out of range, not the moment it brushes a threshold.
+						const auto  existing = g_hidden.find(a_shape);
+						const bool  wasHidden = existing != g_hidden.end();
+						const float m = wasHidden ? Settings::Hysteresis : 0.0f;
+						const float reach = corridor + b.radius + m;
+						const bool  high = b.center.z >= minZ - m;
 						const bool  notTooBig = b.radius <= Settings::MaxShapeRadius;
 						const bool  inCorridor = DistSqToSegment(b.center, camPos, head) <= reach * reach;
 						const float along = haveDir ? (b.center.x - feet.x) * toCamX + (b.center.y - feet.y) * toCamY : 0.0f;
-						const bool  ceiling = b.center.z >= ceilZ;
-						const bool  cameraSide = along >= -Settings::BehindMargin;
+						const bool  ceiling = b.center.z >= ceilZ - m;
+						const bool  cameraSide = along >= -Settings::BehindMargin - m;
 						const bool  hide = high && notTooBig && inCorridor && (ceiling || cameraSide);
 
 						if (logRef && g_loggedShapes < kMaxShapeLogsPerCell) {
@@ -290,6 +296,11 @@ namespace Occlusion
 							return;
 						}
 
+						if (wasHidden) {
+							existing->second.lastSweep = g_sweepId;
+							existing->second.unseenTime = 0.0f;
+							return;
+						}
 						auto [it, inserted] = g_hidden.try_emplace(a_shape);
 						if (inserted) {
 							it->second.keepalive = RE::NiPointer<RE::NiAVObject>(a_shape);

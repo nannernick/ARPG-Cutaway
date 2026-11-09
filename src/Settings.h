@@ -18,6 +18,7 @@ namespace Settings
 	inline float BehindMargin = 100.0f;       // how far behind the player a wall-height piece may be and still hide
 	inline float MaxShapeRadius = 1500.0f;    // never hide shapes bigger than this (whole-room shells)
 	inline float Linger = 0.4f;               // seconds a shape stays hidden after it stops qualifying
+	inline float Hysteresis = 75.0f;          // once hidden, every threshold is relaxed by this much (stops flicker)
 
 	// [Background]
 	inline bool BlackFog = true;              // experiment: force interior fog colors to black

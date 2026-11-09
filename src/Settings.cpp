@@ -85,6 +85,7 @@ namespace Settings
 		BehindMargin = GetFloat(ini, "Hide.BehindMargin", BehindMargin, -2000.0f, 5000.0f);
 		MaxShapeRadius = GetFloat(ini, "Hide.MaxShapeRadius", MaxShapeRadius, 0.0f, 100000.0f);
 		Linger = GetFloat(ini, "Hide.Linger", Linger, 0.0f, 10.0f);
+		Hysteresis = GetFloat(ini, "Hide.Hysteresis", Hysteresis, 0.0f, 1000.0f);
 
 		BlackFog = GetBool(ini, "Background.BlackFog", BlackFog);
 		HideSky = GetBool(ini, "Background.HideSky", HideSky);
@@ -93,7 +94,7 @@ namespace Settings
 
 		logs::info("settings: enabled={} interiorOnly={} head={:.0f} corridor={:.0f} interval={:.2f} minCam={:.0f}",
 			Enabled, InteriorOnly, HeadHeight, CorridorRadius, SweepInterval, MinCameraDistance);
-		logs::info("settings: ceilingHeight={:.0f} behindMargin={:.0f}", CeilingHeight, BehindMargin);
+		logs::info("settings: ceilingHeight={:.0f} behindMargin={:.0f} hysteresis={:.0f}", CeilingHeight, BehindMargin, Hysteresis);
 		logs::info("settings: minHeight={:.0f} maxShapeRadius={:.0f} linger={:.2f} blackFog={} hideSky={} debugLog={}",
 			MinHeight, MaxShapeRadius, Linger, BlackFog, HideSky, DebugLog);
 	}

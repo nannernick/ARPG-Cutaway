@@ -52,15 +52,68 @@ namespace Occlusion
 		// sustained change in floor level (another storey), gliding to the new height.
 		bool                            g_anchorValid{ false };
 		float                           g_anchorZ{ 0.0f };
-		float                           g_anchorTarget{ 0.0f };
-		bool                            g_anchorMoving{ false };
 		float                           g_reanchorTimer{ 0.0f };
+		bool                            g_smoothValid{ false };
+		float                           g_smoothFloor{ 0.0f };
+		bool                            g_autoLift{ true };  // runtime style, toggled by ToggleKey
 		const Settings::CellOverride*   g_cellOverride{ nullptr };
 
 		// Auto-lift: how far the cut is currently raised above its normal height.
 		float g_lift{ 0.0f };
 		float g_clearTime{ 0.0f };
 		bool  g_viewBlocked{ true };
+
+		// Eases a_value toward a_target: exponential (time constant HeightSmoothing)
+		// with a hard speed cap (MaxHeightSpeed units/second).
+		void Smooth(float& a_value, float a_target, float a_dt)
+		{
+			const float tau = Settings::HeightSmoothing;
+			const float alpha = tau > 0.0f ? 1.0f - std::exp(-a_dt / tau) : 1.0f;
+			float       step = (a_target - a_value) * alpha;
+			const float cap = Settings::MaxHeightSpeed * a_dt;
+			step = std::clamp(step, -cap, cap);
+			a_value = std::abs(a_target - a_value) <= std::abs(step) ? a_target : a_value + step;
+		}
+
+		void ToggleStyle()
+		{
+			g_autoLift = !g_autoLift;
+			g_clearTime = 0.0f;
+			RE::SendHUDMessage::ShowHUDMessage(g_autoLift ? "ARPG Cutaway: Auto (cuts only when blocked)" : "ARPG Cutaway: Always cut");
+			logs::info("[cut] style toggled: {}", g_autoLift ? "auto" : "always cut");
+		}
+
+		class InputSink : public RE::BSTEventSink<RE::InputEvent*>
+		{
+		public:
+			static InputSink* Get()
+			{
+				static InputSink s_sink;
+				return &s_sink;
+			}
+
+			RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_event, RE::BSTEventSource<RE::InputEvent*>*) override
+			{
+				if (!a_event || Settings::ToggleKey == 0) {
+					return RE::BSEventNotifyControl::kContinue;
+				}
+				for (auto* e = *a_event; e; e = e->next) {
+					if (e->GetEventType() != RE::INPUT_EVENT_TYPE::kButton || e->GetDevice() != RE::INPUT_DEVICE::kKeyboard) {
+						continue;
+					}
+					auto* button = e->AsButtonEvent();
+					if (!button || !button->IsDown() || button->GetIDCode() != Settings::ToggleKey) {
+						continue;
+					}
+					auto* ui = RE::UI::GetSingleton();
+					if (ui && ui->GameIsPaused()) {
+						continue;  // menus, console
+					}
+					ToggleStyle();
+				}
+				return RE::BSEventNotifyControl::kContinue;
+			}
+		};
 
 		// True if static world geometry (walls, roofs, rock) sits between the camera
 		// and the player. Uses collision, so it is unaffected by the visual cut.
@@ -228,12 +281,12 @@ namespace Occlusion
 			g_loggedRefs.clear();
 			g_loggedShapes = 0;
 			g_anchorValid = false;
-			g_anchorMoving = false;
 			g_reanchorTimer = 0.0f;
 			g_cellOverride = nullptr;
 			g_lift = 0.0f;
 			g_clearTime = 0.0f;
 			g_viewBlocked = true;
+			g_smoothValid = false;
 
 			if (!a_cell) {
 				return;
@@ -443,65 +496,60 @@ namespace Occlusion
 				if (!g_anchorValid) {
 					g_anchorZ = feet.z;
 					g_anchorValid = true;
-					g_anchorMoving = false;
+					g_smoothValid = false;
 				}
 				// Only count time on the ground at a new height: jumps and falls never re-anchor.
 				const bool grounded = !player->IsInMidair();
-				if (grounded && std::abs(feet.z - g_anchorZ) > Settings::ReanchorDistance && !g_anchorMoving) {
+				if (grounded && std::abs(feet.z - g_anchorZ) > Settings::ReanchorDistance) {
 					g_reanchorTimer += a_delta;
 					if (g_reanchorTimer >= Settings::ReanchorDelay) {
-						g_anchorTarget = feet.z;
-						g_anchorMoving = true;
-						g_reanchorTimer = 0.0f;
 						if (Settings::DebugLog) {
-							logs::info("[cut] re-anchoring {:+.0f} -> {:+.0f}", g_anchorZ, g_anchorTarget);
+							logs::info("[cut] re-anchoring {:+.0f} -> {:+.0f}", g_anchorZ, feet.z);
 						}
+						g_anchorZ = feet.z;  // the smoothing below glides the cut there
+						g_reanchorTimer = 0.0f;
 					}
 				} else {
 					g_reanchorTimer = 0.0f;
 				}
-				if (g_anchorMoving) {
-					const float step = Settings::ReanchorSpeed * a_delta;
-					const float diff = g_anchorTarget - g_anchorZ;
-					if (std::abs(diff) <= step) {
-						g_anchorZ = g_anchorTarget;
-						g_anchorMoving = false;
-					} else {
-						g_anchorZ += diff > 0.0f ? step : -step;
-					}
-				}
 
-				// Auto-lift: drop the cut fast when something blocks the view, raise it
-				// slowly (after ClearDelay) when the camera can already see the player.
-				if (Settings::AutoLift && camNode) {
+				// Auto style: lift the cut out of the way once the view has been clear for
+				// ClearDelay. Cutaway style (Diablo look): always cut.
+				float liftTarget = 0.0f;
+				if (g_autoLift && camNode) {
 					const bool blocked = SightBlocked(player, cell, camNode->world.translate, feet);
 					if (blocked != g_viewBlocked && Settings::DebugLog) {
 						logs::info("[cut] view {}", blocked ? "blocked -> lowering cut" : "clear -> raising cut");
 					}
 					g_viewBlocked = blocked;
 					g_clearTime = blocked ? 0.0f : g_clearTime + a_delta;
-					const bool  raise = !blocked && g_clearTime >= Settings::ClearDelay;
-					const float target = raise ? Settings::LiftMax : 0.0f;
-					const float speed = raise ? Settings::LiftSpeed : Settings::DropSpeed;
-					const float diff = target - g_lift;
-					const float step = speed * a_delta;
-					g_lift = std::abs(diff) <= step ? target : g_lift + (diff > 0.0f ? step : -step);
-				} else {
-					g_lift = 0.0f;
+					if (!blocked && g_clearTime >= Settings::ClearDelay) {
+						liftTarget = Settings::LiftMax;
+					}
 				}
-				const bool liftedAway = Settings::AutoLift && Settings::LiftMax > 0.0f && g_lift >= Settings::LiftMax;
 
+				// Every height change (new floor, lift, drop) eases toward its target:
+				// exponential smoothing with a speed cap, so the cut never jumps.
+				if (!g_smoothValid) {
+					g_smoothFloor = g_anchorZ;
+					g_lift = liftTarget;
+					g_smoothValid = true;
+				}
+				Smooth(g_smoothFloor, g_anchorZ, a_delta);
+				Smooth(g_lift, liftTarget, a_delta);
+
+				const bool liftedAway = liftTarget > 0.0f && g_lift >= Settings::LiftMax - 1.0f;
 				const bool off = (g_cellOverride && g_cellOverride->off) || liftedAway;
 				if (camNode && !off) {
 					const float  height = g_cellOverride ? g_cellOverride->height : Settings::CutHeight;
-					const float  cutZ = g_anchorZ + height + g_lift;
+					const float  cutZ = g_smoothFloor + height + g_lift;
 					const auto&  camPos = camNode->world.translate;
 
 					// Keep points with z <= cutZ + slope * (distance past the player, away from
 					// the camera). The render side clamps the slope to keep the floor on screen.
 					Cut::Params params;
 					params.cutZ = cutZ;
-					params.floorZ = g_anchorZ;
+					params.floorZ = g_smoothFloor;
 					float       ax = feet.x - camPos.x;
 					float       ay = feet.y - camPos.y;
 					const float aLen = std::sqrt(ax * ax + ay * ay);
@@ -567,6 +615,15 @@ namespace Occlusion
 		REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_PlayerCharacter[0] };
 		PlayerUpdate::func = vtbl.write_vfunc(0xAD, PlayerUpdate::thunk);
 		logs::info("installed PlayerCharacter::Update hook (vtbl[0xAD])");
+	}
+
+	void RegisterInput()
+	{
+		g_autoLift = Settings::AutoLift;
+		if (auto* input = RE::BSInputDeviceManager::GetSingleton()) {
+			input->AddEventSink(InputSink::Get());
+			logs::info("[cut] toggle key {:#x} registered (style: {})", Settings::ToggleKey, g_autoLift ? "auto" : "always cut");
+		}
 	}
 
 	void RestoreAll()

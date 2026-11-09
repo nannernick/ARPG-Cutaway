@@ -14,12 +14,12 @@ namespace Settings
 	inline float CutSlope = 1.0f;             // how fast the cut rises behind you, away from the camera (1 = 45 deg, 0 = flat)
 	inline float ReanchorDistance = 150.0f;   // cut height only moves if you are this far above/below its anchor...
 	inline float ReanchorDelay = 1.0f;        // ...for this many seconds, on the ground
-	inline float ReanchorSpeed = 400.0f;      // units/second the cut glides to its new height
-	inline bool  AutoLift = true;             // raise the cut out of the way when nothing blocks the view
+	inline float HeightSmoothing = 0.6f;      // seconds: how gently every height change eases in (0 = instant)
+	inline float MaxHeightSpeed = 800.0f;     // units/second cap on any height change
+	inline bool  AutoLift = true;             // starting style: 1 = cut only when the view is blocked, 0 = always cut
+	inline std::uint32_t ToggleKey = 0x44;    // DirectX scan code to switch styles in game (0x44 = F10, 0 = none)
 	inline float ClearDelay = 0.75f;          // seconds the view must be clear before the cut rises
-	inline float LiftSpeed = 600.0f;          // units/second the cut rises when the view is clear
-	inline float DropSpeed = 2500.0f;         // units/second it comes back down when something blocks the view
-	inline float LiftMax = 1500.0f;           // how far it rises; at the top the cut is switched off
+	inline float LiftMax = 600.0f;            // how far it rises; at the top the cut is switched off
 
 	// [Cells] - per-interior overrides, keyed by lowercase editor ID
 	struct CellOverride

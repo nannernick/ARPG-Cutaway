@@ -16,13 +16,14 @@ Everything above a cut plane is clipped away by the GPU, like the cutaway view i
 Diablo-style games. Walls end at a clean line, and roofs and ceilings disappear.
 
 - **Static per area:** the cut height is anchored when you enter a cell and only
-  moves on a sustained change in floor level (another storey), gliding there. Stairs
-  and bumps don't move it.
+  moves on a sustained change in floor level (another storey). Jumps never move it.
+  Every height change eases in smoothly instead of snapping.
 - **Far walls stay:** the plane sits at `Height` above the floor at your position
   and rises (`Slope`) going away from the camera, so the walls on the far side of
   the room render full height. The tilt follows the camera's direction. The slope is
   clamped automatically so the plane never dips below the floor anywhere on screen.
-- **Only when needed:** with `AutoLift`, a few rays from the camera to your
+- **Two styles, F10 to switch:** *Always cut* is the Diablo look, with every room
+  neatly cut. *Auto* only cuts when something blocks the view: a few rays from the camera to your
   character check whether walls or rock are in the way. If nothing blocks the view,
   as in big caves and tall halls with the camera under the ceiling, the cut glides
   up and out of the way. It drops back as soon as something blocks the view.
@@ -66,11 +67,12 @@ All settings live in `Data/SKSE/Plugins/ARPGCutaway.ini`. Restart the game after
 | `Cut.Slope` | 1.0 | How fast the cut rises behind you (1 = 45°, 0 = flat); clamped to keep the floor |
 | `Cut.ReanchorDistance` | 150 | Height change needed before the cut moves (e.g. another floor) |
 | `Cut.ReanchorDelay` | 1.0 | Seconds on the ground at the new height before it moves (jumps never count) |
-| `Cut.ReanchorSpeed` | 400 | How fast the cut glides to its new height (units/second) |
-| `Cut.AutoLift` | 1 | Raise the cut out of the way when nothing blocks the view |
-| `Cut.ClearDelay` | 0.75 | Seconds of clear view before it rises |
-| `Cut.LiftSpeed` / `DropSpeed` | 600 / 2500 | Rise / drop speed (units/second) |
-| `Cut.LiftMax` | 1500 | How far it rises; at the top the cut switches off |
+| `Cut.HeightSmoothing` | 0.6 | Seconds every height change eases in over (0 = instant) |
+| `Cut.MaxHeightSpeed` | 800 | Speed cap on any height change (units/second) |
+| `Cut.AutoLift` | 1 | Starting style: 1 = cut only when the view is blocked, 0 = always cut |
+| `Cut.ToggleKey` | 68 (F10) | DirectX scan code that switches styles in game (0 = none) |
+| `Cut.ClearDelay` | 0.75 | Auto style: seconds of clear view before it rises |
+| `Cut.LiftMax` | 600 | Auto style: how far it rises; at the top the cut switches off |
 | `[Cells] <EditorID>` | — | Per-interior cut height, or `off` |
 | `Background.BlackFog` | 1 | Black interior fog while inside |
 | `Background.HideSky` | 1 | Hide the sky dome while inside |

@@ -15,6 +15,9 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 			return;
 		}
 		switch (a_msg->type) {
+		case SKSE::MessagingInterface::kInputLoaded:
+			Occlusion::RegisterInput();
+			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
 		case SKSE::MessagingInterface::kNewGame:
 			Occlusion::RestoreAll();
